@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
@@ -21,10 +22,24 @@ type AppConfig struct {
 	Port string
 }
 
-func (server *Server) Initialize(nameApp string) {
+type DbConfig struct {
+	Host     string
+	User     string
+	Password string
+	Name     string
+	Port     string
+}
+
+func (server *Server) Initialize(nameApp string, dbConfig DbConfig) {
 	fmt.Println("welkom to " + nameApp)
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/jakarta", dbConfig.Host, dbConfig.User, dbConfig.Password, dbConfig.Name, dbConfig.Port)
+	var err error
+	server.DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	errorHandling(err)
+
 	server.Router = mux.NewRouter()
 	server.initializeRoutes()
+
 }
 
 func (server *Server) Run(addr string) {
@@ -47,7 +62,15 @@ func Run() {
 		Port: os.Getenv("APP_PORT"),
 	}
 
+	var dbConfig = DbConfig{
+		Host:     os.Getenv("DB_HOST"),
+		User:     os.Getenv("DB_USER"),
+		Password: os.Getenv("DB_PASS"),
+		Name:     os.Getenv("DB_NAME"),
+		Port:     os.Getenv("DB_PORT"),
+	}
+
 	var server = Server{}
-	server.Initialize(appConfig.Name)
+	server.Initialize(appConfig.Name, dbConfig)
 	server.Run(appConfig.Port)
 }
