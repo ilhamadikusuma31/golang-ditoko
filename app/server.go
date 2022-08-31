@@ -32,14 +32,23 @@ type DbConfig struct {
 
 func (server *Server) Initialize(nameApp string, dbConfig DbConfig) {
 	fmt.Println("welkom to " + nameApp)
+	server.Router = mux.NewRouter()
+	server.initializeRoutes()
+
+}
+
+func (server *Server) Initializedb(dbConfig DbConfig) {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/jakarta", dbConfig.Host, dbConfig.User, dbConfig.Password, dbConfig.Name, dbConfig.Port)
 	var err error
 	server.DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	errorHandling(err)
 
-	server.Router = mux.NewRouter()
-	server.initializeRoutes()
-
+	var m Model
+	for _, data := range m.RegisterModels() {
+		err = server.DB.Debug().AutoMigrate(data.Model)
+		errorHandling(err)
+	}
+	fmt.Println("database migration success")
 }
 
 func (server *Server) Run(addr string) {
@@ -72,5 +81,6 @@ func Run() {
 
 	var server = Server{}
 	server.Initialize(appConfig.Name, dbConfig)
+	server.Initializedb(dbConfig)
 	server.Run(appConfig.Port)
 }
