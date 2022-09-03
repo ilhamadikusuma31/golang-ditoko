@@ -7,7 +7,7 @@ type Model struct {
 	Model interface{}
 }
 
-func (model *Model) RegisterModels() []Model {
+func RegisterModels() []Model {
 	return []Model{
 		{Model: models.User{}},
 		{Model: models.Address{}},

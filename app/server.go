@@ -2,13 +2,19 @@ package app
 
 import (
 	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/ilhamadikusuma31/ditoko/app/database/seeders"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+
+	"github.com/joho/godotenv"
+
+	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 type Server struct {
@@ -17,70 +23,87 @@ type Server struct {
 }
 
 type AppConfig struct {
-	Name string
-	Env  string
-	Port string
+	AppName string
+	AppEnv  string
+	AppPort string
 }
 
-type DbConfig struct {
-	Host     string
-	User     string
-	Password string
-	Name     string
-	Port     string
+type DBConfig struct {
+	DBHost     string
+	DBUser     string
+	DBPassword string
+	DBName     string
+	DBPort     string
+	DBDriver   string
 }
 
-func (server *Server) Initialize(nameApp string, dbConfig DbConfig) {
-	fmt.Println("welkom to " + nameApp)
-	server.Router = mux.NewRouter()
+func (server *Server) Initialize(appConfig AppConfig, dbConfig DBConfig) {
+	fmt.Println("Welcome to " + appConfig.AppName)
+
+	server.initializeDB(dbConfig)
 	server.initializeRoutes()
-
-}
-
-func (server *Server) Initializedb(dbConfig DbConfig) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/jakarta", dbConfig.Host, dbConfig.User, dbConfig.Password, dbConfig.Name, dbConfig.Port)
-	var err error
-	server.DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	errorHandling(err)
-
-	var m Model
-	for _, data := range m.RegisterModels() {
-		err = server.DB.Debug().AutoMigrate(data.Model)
-		errorHandling(err)
-	}
-	fmt.Println("database migration success")
+	seeders.DBSeed(server.DB)
 }
 
 func (server *Server) Run(addr string) {
-	fmt.Printf("listening to port %s", addr)
+	fmt.Printf("Listening to port %s", addr)
 	log.Fatal(http.ListenAndServe(addr, server.Router))
 }
 
-func errorHandling(err error) {
-	if err != nil {
-		log.Fatal(err)
+func (server *Server) initializeDB(dbConfig DBConfig) {
+	var err error
+	if dbConfig.DBDriver == "mysql" {
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBHost, dbConfig.DBPort, dbConfig.DBName)
+		server.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	} else {
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta", dbConfig.DBHost, dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBName, dbConfig.DBPort)
+		server.DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	}
+
+	if err != nil {
+		panic("Failed on connecting to the database server")
+	}
+
+	for _, j := range RegisterModels() {
+		err = server.DB.Debug().AutoMigrate(j.Model)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	fmt.Println("Database migrated successfully.")
+}
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+
+	return fallback //jika tidak ada key yang sesuai .env maka akan pake default di hardcode
 }
 
 func Run() {
-	err := godotenv.Load()
-	errorHandling(err)
-	var appConfig = AppConfig{
-		Name: os.Getenv("APP_NAME"),
-		Env:  os.Getenv("APP_ENV"),
-		Port: os.Getenv("APP_PORT"),
-	}
-
-	var dbConfig = DbConfig{
-		Host:     os.Getenv("DB_HOST"),
-		User:     os.Getenv("DB_USER"),
-		Password: os.Getenv("DB_PASS"),
-		Name:     os.Getenv("DB_NAME"),
-		Port:     os.Getenv("DB_PORT"),
-	}
-
 	var server = Server{}
-	server.Initialize(appConfig.Name, dbConfig)
-	server.Initializedb(dbConfig)
-	server.Run(appConfig.Port)
+	var appConfig = AppConfig{}
+	var dbConfig = DBConfig{}
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error on loading .env file")
+	}
+
+	appConfig.AppName = getEnv("APP_NAME", "diToko`")
+	appConfig.AppEnv = getEnv("APP_ENV", "development")
+	appConfig.AppPort = getEnv("APP_PORT", "9000")
+
+	dbConfig.DBHost = getEnv("DB_HOST", "localhost")
+	dbConfig.DBUser = getEnv("DB_USER", "user")
+	dbConfig.DBPassword = getEnv("DB_PASS", "admin")
+	dbConfig.DBName = getEnv("DB_NAME", "dbname")
+	dbConfig.DBPort = getEnv("DB_PORT", "5432")
+	dbConfig.DBDriver = getEnv("DB_DRIVER", "postgres")
+
+	server.Initialize(appConfig, dbConfig)
+	server.Run(":" + appConfig.AppPort)
 }
