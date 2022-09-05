@@ -6,7 +6,7 @@ import (
 )
 
 type Seeder struct {
-	Seeder interface{} //interface kosonng, Variabel bertipe ini bisa menampung segala jenis data, bahkan array, pointer, apapun
+	Seeder interface{} //interface kosong, Variabel bertipe ini bisa menampung segala jenis data, bahkan array, pointer, apapun
 
 }
 
